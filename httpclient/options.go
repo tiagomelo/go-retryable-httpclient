@@ -86,3 +86,13 @@ func WithRequestDumpLogger(requestDumpLogger func(dump []byte), dumpRequestBody 
 		c.dumpRequestBody = dumpRequestBody
 	}
 }
+
+// WithResponseDumpLogger specifies a function that receives
+// the response dump along its body (optionally) for
+// logging purposes.
+func WithResponseDumpLogger(responseDumpLogger func(dump []byte), dumpResponseBody bool) Option {
+	return func(c *Client) {
+		c.responseDumpLogger = responseDumpLogger
+		c.dumpResponseBody = dumpResponseBody
+	}
+}

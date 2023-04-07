@@ -74,6 +74,7 @@ var (
 		return transport, isTransport
 	}
 	dumpRequestOut = httputil.DumpRequestOut
+	dumpResponse   = httputil.DumpResponse
 )
 
 // Client represents an http client.
@@ -90,6 +91,8 @@ type Client struct {
 	retryWaitMax        time.Duration
 	requestDumpLogger   func(dump []byte)
 	dumpRequestBody     bool
+	responseDumpLogger  func(dump []byte)
+	dumpResponseBody    bool
 }
 
 // doNotRetryPolicy is the default retry policy
@@ -161,8 +164,9 @@ func New(options ...Option) *Client {
 }
 
 // do performs a request and parses the response to the given interface, if provided.
-func do(retryableHttpClient *retryablehttp.Client, req *retryablehttp.Request, v any) (*http.Response, error) {
-	resp, err := retryableHttpClientDo(retryableHttpClient, req)
+func (c *Client) do(req *retryablehttp.Request, v any) (*http.Response, error) {
+	resp, err := retryableHttpClientDo(c.retryableHttpClient, req)
+	c.logResponseDump(resp)
 	if err := handleUnsuccessfulResponse(req.URL.String(), resp, err); err != nil {
 		return resp, err
 	}
@@ -182,10 +186,22 @@ func (c *Client) logRequestDump(req *http.Request) {
 	}
 }
 
+// logResponseDump logs the response dump.
+func (c *Client) logResponseDump(resp *http.Response) {
+	if resp != nil {
+		if c.responseDumpLogger != nil {
+			dump, err := dumpResponse(resp, c.dumpResponseBody)
+			if err == nil {
+				c.responseDumpLogger(dump)
+			}
+		}
+	}
+}
+
 // sendRequest sends a request with or without payload.
 func (c *Client) sendRequest(req *http.Request, v any) (*http.Response, error) {
 	c.logRequestDump(req)
-	resp, err := do(c.retryableHttpClient, &retryablehttp.Request{Request: req}, v)
+	resp, err := c.do(&retryablehttp.Request{Request: req}, v)
 	if err != nil {
 		return resp, err
 	}
