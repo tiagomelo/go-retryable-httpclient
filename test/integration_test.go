@@ -30,8 +30,16 @@ func logRequestDump(dump []byte) {
 	fmt.Println(string(dump))
 }
 
+func logResponseDump(dump []byte) {
+	fmt.Print("received response:\n\n")
+	fmt.Println(string(dump))
+}
+
 func TestMain(m *testing.M) {
-	client = httpclient.New(httpclient.WithRequestDumpLogger(logRequestDump, true))
+	client = httpclient.New(
+		httpclient.WithRequestDumpLogger(logRequestDump, true),
+		httpclient.WithResponseDumpLogger(logResponseDump, true),
+	)
 	exitVal := m.Run()
 	os.Exit(exitVal)
 }

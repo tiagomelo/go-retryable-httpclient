@@ -21,6 +21,7 @@ For more information see the
 - `WithRetryWaitMax` specifies maximum time to wait before retrying
 - `WithCheckRetryPolicy` specifies the policy for handling retries, and is called after each request
 - `WithRequestDumpLogger` specifies a function that receives the request dump for logging purposes
+- `WithResponseDumpLogger` specifies a function that receives the response dump for logging purposes
 
 ## usage
 
@@ -238,6 +239,82 @@ Custom-Header-2: some other value
 Accept-Encoding: gzip
 
 {"name":"Steve Harris","email":"steve@ironmaiden.com"}
+```
+
+## dumping responses
+
+### without response body
+
+```
+func logResponseDump(dump []byte) {
+	fmt.Print("received response:\n\n")
+	fmt.Println(string(dump))
+}
+
+client := httpclient.New(httpclient.WithResponseDumpLogger(logResponseDump, false))
+```
+
+Sample output:
+
+```
+received response:
+
+HTTP/1.1 200 OK
+Content-Length: 542
+Access-Control-Allow-Credentials: true
+Access-Control-Allow-Origin: *
+Connection: keep-alive
+Content-Type: application/json
+Date: Fri, 07 Apr 2023 00:10:19 GMT
+Server: gunicorn/19.9.0
+```
+
+### with response body
+
+```
+func logResponseDump(dump []byte) {
+	fmt.Print("received response:\n\n")
+	fmt.Println(string(dump))
+}
+
+client := httpclient.New(httpclient.WithResponseDumpLogger(logResponseDump, true))
+```
+
+Sample output:
+
+```
+received response:
+
+HTTP/1.1 200 OK
+Content-Length: 542
+Access-Control-Allow-Credentials: true
+Access-Control-Allow-Origin: *
+Connection: keep-alive
+Content-Type: application/json
+Date: Fri, 07 Apr 2023 00:11:20 GMT
+Server: gunicorn/19.9.0
+
+{
+  "args": {}, 
+  "data": "{\"name\":\"Steve Harris\",\"email\":\"steve@ironmaiden.com\"}\n", 
+  "files": {}, 
+  "form": {}, 
+  "headers": {
+    "Accept-Encoding": "gzip", 
+    "Content-Length": "55", 
+    "Content-Type": "application/json", 
+    "Custom-Header-1": "some value", 
+    "Custom-Header-2": "some other value", 
+    "Host": "localhost", 
+    "User-Agent": "Go-http-client/1.1"
+  }, 
+  "json": {
+    "email": "steve@ironmaiden.com", 
+    "name": "Steve Harris"
+  }, 
+  "origin": "240.10.0.1", 
+  "url": "http://localhost/post"
+}
 ```
 
 ## running unit tests

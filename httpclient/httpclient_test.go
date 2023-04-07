@@ -21,6 +21,7 @@ type (
 	ioReadAllMock      func(r io.Reader) ([]byte, error)
 	jsonDecodeMock     func(r io.Reader, data any) error
 	dumpRequestOutMock func(req *http.Request, body bool) ([]byte, error)
+	dumpResponseMock   func(resp *http.Response, body bool) ([]byte, error)
 	dummyType          struct {
 		Key string `json:"key"`
 	}
@@ -164,10 +165,12 @@ func TestSendRequest(t *testing.T) {
 	testCases := []struct {
 		name                      string
 		requestDumpLogger         func(dump []byte)
+		responseDumpLogger        func(dump []byte)
 		retryableHttpClientDoMock func(retryableHttpClient *retryablehttp.Client,
 			req *retryablehttp.Request) (*http.Response, error)
 		ioReadAllMock      func(r io.Reader) ([]byte, error)
 		dumpRequestOutMock func(req *http.Request, body bool) ([]byte, error)
+		dumpResponseMock   func(resp *http.Response, body bool) ([]byte, error)
 		expectedError      error
 	}{
 		{
@@ -202,6 +205,45 @@ func TestSendRequest(t *testing.T) {
 				return nil, errors.New("random error")
 			},
 			requestDumpLogger: func(dump []byte) {
+				require.Equal(t, "", string(dump))
+			},
+			retryableHttpClientDoMock: func(retryableHttpClient *retryablehttp.Client,
+				req *retryablehttp.Request) (*http.Response, error) {
+				resp := &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       io.NopCloser(bytes.NewReader([]byte(""))),
+				}
+				return resp, nil
+			},
+		},
+		{
+			name: "dumping non-nil response",
+			responseDumpLogger: func(dump []byte) {
+				expectedDump := "HTTP/0.0 200 OK\r\nContent-Length: 0\r\n\r\n"
+				require.Equal(t, expectedDump, string(dump))
+			},
+			retryableHttpClientDoMock: func(retryableHttpClient *retryablehttp.Client,
+				req *retryablehttp.Request) (*http.Response, error) {
+				resp := &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       io.NopCloser(bytes.NewReader([]byte(`{"message":"ok"}`))),
+				}
+				return resp, nil
+			},
+		},
+		{
+			name: "dumping nil response",
+			retryableHttpClientDoMock: func(retryableHttpClient *retryablehttp.Client,
+				req *retryablehttp.Request) (*http.Response, error) {
+				return nil, nil
+			},
+		},
+		{
+			name: "error when dumping response",
+			dumpResponseMock: func(resp *http.Response, body bool) ([]byte, error) {
+				return nil, errors.New("random error")
+			},
+			responseDumpLogger: func(dump []byte) {
 				require.Equal(t, "", string(dump))
 			},
 			retryableHttpClientDoMock: func(retryableHttpClient *retryablehttp.Client,
@@ -268,23 +310,24 @@ func TestSendRequest(t *testing.T) {
 	}
 	originalIoReadAll := ioReadAll
 	originalDumpRequestOut := dumpRequestOut
+	originalDumpResponse := dumpResponse
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			retryableHttpClientDo = tc.retryableHttpClientDoMock
 			handleIoReadAllMock(tc.ioReadAllMock, originalIoReadAll)
 			handleDumpRequestOut(tc.dumpRequestOutMock, originalDumpRequestOut)
-			client := New(WithRequestDumpLogger(tc.requestDumpLogger, false))
+			handleDumpResponse(tc.dumpResponseMock, originalDumpResponse)
+			client := New(WithRequestDumpLogger(tc.requestDumpLogger, false), WithResponseDumpLogger(tc.responseDumpLogger, false))
 			req, err := http.NewRequest(http.MethodPost, "http://localhost/some/path", nil)
 			if err != nil {
 				t.Fatalf(`error when creating request: "%v"`, err)
 			}
-			resp, err := client.SendRequest(req)
+			_, err = client.SendRequest(req)
 			if err != nil {
 				checkIfErrorIsExpected(t, err, tc.expectedError)
 				require.Equal(t, tc.expectedError.Error(), err.Error())
 			} else {
 				checkIfErrorIsNotExpected(t, err, tc.expectedError)
-				require.NotNil(t, resp)
 			}
 		})
 	}
@@ -431,5 +474,13 @@ func handleDumpRequestOut(mocked dumpRequestOutMock, original dumpRequestOutMock
 		dumpRequestOut = mocked
 	} else {
 		dumpRequestOut = original
+	}
+}
+
+func handleDumpResponse(mocked dumpResponseMock, original dumpResponseMock) {
+	if mocked != nil {
+		dumpResponse = mocked
+	} else {
+		dumpResponse = original
 	}
 }
