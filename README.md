@@ -23,6 +23,11 @@ For more information see the
 - `WithRequestDumpLogger` specifies a function that receives the request dump for logging purposes
 - `WithResponseDumpLogger` specifies a function that receives the response dump for logging purposes
 
+## available check retry policies
+
+- `DoNotRetry` policy does not retry a failed request, default policy if none is specified
+- `Eof` policy retries a request in case of EOF error
+
 ## usage
 
 ```
@@ -36,15 +41,20 @@ client := httpclient.New(
     httpclient.WithMaxRetries(5),
     httpclient.WithRetryWaitMin(1 * time.Second),
     httpclient.WithRetryWaitMax(5 * time.Second),
-    httpclient.WithCheckRetryPolicy(func(ctx context.Context, resp *http.Response, err error) (bool, error) {
-        if resp != nil {
-            statusCode := resp.StatusCode
-            if statusCode == http.StatusBadRequest {
-                return true, err
-            }
-        }
-        return false, err
-    }),
+    
+    // you can pick one from `policies` package
+    // httpclient.WithCheckRetryPolicy(policies.Eof),
+
+    // or provide a custom one
+    // httpclient.WithCheckRetryPolicy(func(ctx context.Context, resp *http.Response, err error) (bool, error) {
+    //    if resp != nil {
+    //        statusCode := resp.StatusCode
+    //        if statusCode == http.StatusBadRequest {
+    //            return true, err
+    //        }
+    //    }
+    //    return false, err
+    //}),
 )
 ```
 
