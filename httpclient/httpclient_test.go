@@ -8,12 +8,12 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/stretchr/testify/require"
+	"github.com/tiagomelo/go-retryable-httpclient/httpclient/retry/policies"
 )
 
 type (
@@ -42,27 +42,22 @@ func TestDefaultPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatalf(`creating request for "%v": %v`, url, err)
 	}
-	_, err = client.SendRequest(req)
+	resp, err := client.SendRequest(req)
 	expectedError := fmt.Errorf(`request to %s failed. `+
 		`httpStatus: [ %d ] responseBody: [  ] `+
 		`error: [ <nil> ]`, url, http.StatusBadGateway)
 	require.NotNil(t, err)
+	require.Equal(t, resp.StatusCode, http.StatusBadGateway)
 	require.Equal(t, expectedError.Error(), err.Error())
 }
 
 func TestEofRetryPolicy(t *testing.T) {
-	checkRetryPolicy := func(ctx context.Context, resp *http.Response, err error) (bool, error) {
-		if err != nil {
-			return strings.Contains(err.Error(), "EOF"), err
-		}
-		return false, err
-	}
 	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		panic(errors.New("random error"))
 	}))
 	defer svr.Close()
 	url := svr.URL
-	client := New(WithMaxRetries(1), WithCheckRetryPolicy(checkRetryPolicy))
+	client := New(WithMaxRetries(1), WithCheckRetryPolicy(policies.Eof))
 	req, err := NewRequest(context.TODO(), http.MethodGet, url)
 	if err != nil {
 		t.Fatalf(`creating request for "%v": %v`, url, err)

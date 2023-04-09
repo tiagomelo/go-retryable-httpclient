@@ -2,7 +2,6 @@
 package httpclient
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/pkg/errors"
+	"github.com/tiagomelo/go-retryable-httpclient/httpclient/retry/policies"
 )
 
 // For ease of unit testing.
@@ -95,17 +95,6 @@ type Client struct {
 	dumpResponseBody    bool
 }
 
-// doNotRetryPolicy is the default retry policy
-// when a custom one is not provided, meaning that
-// the request will not be retried.
-// It is necessary because when a custom retry policy is
-// not defined, `retryablehttp.DefaultRetryPolicy` becomes
-// the default one, and it will always retry when status code >= 500,
-// swalling the *http.Response.
-func doNotRetryPolicy(ctx context.Context, resp *http.Response, err error) (bool, error) {
-	return false, nil
-}
-
 // patchRetryableClient patches retryable http client.
 func patchRetryableClient(client *Client) {
 	client.retryableHttpClient.RetryMax = client.maxRetries
@@ -113,8 +102,8 @@ func patchRetryableClient(client *Client) {
 	client.retryableHttpClient.RetryWaitMax = client.retryWaitMax
 	client.retryableHttpClient.HTTPClient = client.httpClient
 	// If no custom check retry policy is provided,
-	// doNotRetryPolicy will be used.
-	client.retryableHttpClient.CheckRetry = doNotRetryPolicy
+	// DoNotRetry policy will be used.
+	client.retryableHttpClient.CheckRetry = policies.DoNotRetry
 	if client.checkRetryPolicy != nil {
 		client.retryableHttpClient.CheckRetry = client.checkRetryPolicy
 	}
